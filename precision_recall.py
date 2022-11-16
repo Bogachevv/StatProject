@@ -46,8 +46,8 @@ def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float]
     :param delta_mode: 'absolute' or 'relative'
     """
     quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
-    arg_sp = np.linspace(np.min(y_act), np.max(y_act), num=dot_c, endpoint=True)
-    sample = np.vstack((y_pred, y_act))
+    arg_sp = np.linspace(np.min(y_pred), np.max(y_pred), num=dot_c, endpoint=True)
+    sample = np.vstack((y_act, y_pred))
     val_sp = np.array([np.quantile(get_slice(arg, sample, 0, delta, delta_mode), quantiles)
                        for arg in arg_sp])
 
@@ -86,8 +86,8 @@ def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = 
     :param delta_mode: 'absolute' or 'relative'
     """
     quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
-    arg_sp = np.linspace(np.min(y_pred), np.max(y_pred), num=dot_c, endpoint=True)
-    sample = np.vstack((y_pred, y_act))
+    arg_sp = np.linspace(np.min(y_act), np.max(y_act), num=dot_c, endpoint=True)
+    sample = np.vstack((y_act, y_pred))
     val_sp = np.vstack(tuple(np.quantile(get_slice(arg, sample, 1, delta, delta_mode), quantiles)
                              for arg in arg_sp))
 
