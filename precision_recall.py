@@ -2,6 +2,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 import itertools
 
+modes_list = ['raw', 'subtraction', 'division']
+plotter_modes_list = ['plot', 'scatter']
+
 
 def get_slice(center: float, sample: np.ndarray, res_dim: int, delta: float = 0.05, mode='absolute') -> np.ndarray:
     """
@@ -33,6 +36,24 @@ def get_slice(center: float, sample: np.ndarray, res_dim: int, delta: float = 0.
     return slc if len(slc) else np.zeros(1)
 
 
+def plot(arg_sp: np.ndarray, val_sp: np.ndarray, quantiles: list[float], plotter_mode: str):
+    if plotter_mode == 'plot':
+        color_map = 'rgbk'
+        line_styles = ['-', '--', '-.', ':']
+        styles = (itertools.product(line_styles, color_map))
+        colors = itertools.cycle(''.join(reversed(style)) for style in styles)
+        for i, (q, c) in enumerate(zip(quantiles, colors)):
+            plot_arr = np.vstack((arg_sp, val_sp[:, i]))
+            plot_arr = plot_arr[:, np.argsort(plot_arr[0, :])]
+            plt.plot(plot_arr[0, :], plot_arr[1, :], c)
+    else:
+        for i, q in enumerate(quantiles):
+            plt.scatter(arg_sp, val_sp[:, i])
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.legend(quantiles)
+
+
 def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
                    plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute') -> None:
     """
@@ -50,7 +71,6 @@ def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float]
     val_sp = np.array([np.quantile(get_slice(arg, sample, 0, delta, delta_mode), quantiles)
                        for arg in arg_sp])
 
-    modes_list = ['raw', 'subtraction', 'division']
     plt_mode = plt_mode.lower()
     if plt_mode not in modes_list:
         raise ValueError(
@@ -62,28 +82,13 @@ def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float]
         for i in range(len(quantiles)):
             val_sp[:, i] /= y_act
 
-    plotter_modes_list = ['plot', 'scatter']
     plotter_mode = plotter_mode.lower()
     if plotter_mode not in plotter_modes_list:
         raise ValueError(
             f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
             f"Available plotter modes: {', '.join(plotter_modes_list)}")
 
-    if plotter_mode == 'plot':
-        color_map = 'rgbk'
-        line_styles = ['-', '--', '-.', ':']
-        styles = (itertools.product(line_styles, color_map))
-        colors = itertools.cycle(''.join(reversed(style)) for style in styles)
-        for i, (q, c) in enumerate(zip(quantiles, colors)):
-            plot_arr = np.vstack((arg_sp, val_sp[:, i]))
-            plot_arr = plot_arr[:, np.argsort(plot_arr[0, :])]
-            plt.plot(plot_arr[0, :], plot_arr[1, :], c)
-    else:
-        for i, q in enumerate(quantiles):
-            plt.scatter(arg_sp, val_sp[:, i])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.legend(quantiles)
+    plot(arg_sp, val_sp, quantiles, plotter_mode)
 
 
 def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
@@ -103,7 +108,6 @@ def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = 
     val_sp = np.vstack(tuple(np.quantile(get_slice(arg, sample, 1, delta, delta_mode), quantiles)
                              for arg in arg_sp))
 
-    modes_list = ['raw', 'subtraction', 'division']
     plt_mode = plt_mode.lower()
     if plt_mode not in modes_list:
         raise ValueError(
@@ -115,26 +119,10 @@ def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = 
         for i in range(len(quantiles)):
             val_sp[:, i] /= y_pred
 
-    plotter_modes_list = ['plot', 'scatter']
     plotter_mode = plotter_mode.lower()
     if plotter_mode not in plotter_modes_list:
         raise ValueError(
             f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
             f"Available plotter modes: {', '.join(plotter_modes_list)}")
 
-    if plotter_mode == 'plot':
-        color_map = 'rgbk'
-        line_styles = ['-', '--', '-.', ':']
-        styles = (itertools.product(line_styles, color_map))
-        colors = itertools.cycle(''.join(reversed(style)) for style in styles)
-        for i, (q, c) in enumerate(zip(quantiles, colors)):
-            plot_arr = np.vstack((arg_sp, val_sp[:, i]))
-            plot_arr = plot_arr[:, np.argsort(plot_arr[0, :])]
-            plt.plot(plot_arr[0, :], plot_arr[1, :], c)
-    else:
-        for i, q in enumerate(quantiles):
-            plt.scatter(arg_sp, val_sp[:, i])
-    plt.xlabel("Actual")
-    plt.ylabel("Predicted")
-    plt.legend(quantiles)
-
+    plot(arg_sp, val_sp, quantiles, plotter_mode)
