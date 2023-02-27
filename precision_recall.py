@@ -1,128 +1,89 @@
+import typing
 import numpy as np
 from matplotlib import pyplot as plt
 import itertools
-
-modes_list = ['raw', 'subtraction', 'division']
-plotter_modes_list = ['plot', 'scatter']
-
-
-def get_slice(center: float, sample: np.ndarray, res_dim: int, delta: float = 0.05, mode='absolute') -> np.ndarray:
-    """
-    :param center: slice center
-    :param sample: [y, y^] sample
-    :param res_dim: res_dim in {0, 1}
-    :param delta: slice radius
-    :param mode: 'absolute' or 'relative'
-    :return:
-        if res_dim == 0: function returns y: y^ in (center-delta, center+delta);
-                   else: function returns y^: y in (center-delta, center+delta)
-    """
-    available_modes = ['absolute', 'relative']
-    mode = mode.lower()
-    if mode not in available_modes:
-        raise ValueError(f"Incorrect mode value(mode={mode}):\nAvailable modes: {', '.join(available_modes)}")
-    if mode == 'relative':
-        if (delta > 1) or (delta < 0):
-            raise ValueError(f"Incorrect delta value(mode={mode}) in relative mode:\nDelta must be in [0, 1]")
-        delta *= delta
-    if (len(sample.shape) != 2) or (sample.shape[0] != 2):
-        raise ValueError(f"sample must be in R^(2xn)")
-
-    if res_dim not in [0, 1]:
-        raise ValueError(f"dim must be in {{0, 1}}")
-
-    filter_dim = 1 - res_dim
-    slc = sample[res_dim, :][(sample[filter_dim, :] < center + delta) & (sample[filter_dim, :] >= center - delta)]
-    return slc if len(slc) else np.zeros(1)
+from typing import Literal
+from scipy import stats
+from bisect import bisect_right
 
 
-def plot(arg_sp: np.ndarray, val_sp: np.ndarray, quantiles: list[float], plotter_mode: str):
-    if plotter_mode == 'plot':
-        color_map = 'rgbk'
-        line_styles = ['-', '--', '-.', ':']
-        styles = (itertools.product(line_styles, color_map))
-        colors = itertools.cycle(''.join(reversed(style)) for style in styles)
-        for i, (q, c) in enumerate(zip(quantiles, colors)):
-            plot_arr = np.vstack((arg_sp, val_sp[:, i]))
-            plot_arr = plot_arr[:, np.argsort(plot_arr[0, :])]
-            plt.plot(plot_arr[0, :], plot_arr[1, :], c)
+def get_cdf(kde, u,*, x0 = None, y0 = None):
+    if (x0 is None) == (y0 is None):
+        raise ValueError("Only one of x0, y0 can be None")
+    if x0 is not None:
+        cdf = np.cumsum(kde.evaluate(np.vstack([np.ones(u.shape) * x0, u])))
     else:
+        cdf = np.cumsum(kde.evaluate(np.vstack([u, np.ones(u.shape) * y0])))
+    cdf = cdf / cdf[-1]
+    return cdf
+
+
+def get_quantile(cdf, u, q):
+    q_pos = bisect_right(cdf, q)
+    return u[q_pos]
+
+
+def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None,
+                   plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
+                   plotter_mode: Literal['plot', 'scatter'] = 'plot') -> None:
+    quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
+
+    kde = stats.gaussian_kde(np.vstack([y_act, y_pred]))
+    u = np.linspace(min(y_pred), max(y_pred), num=10_000, endpoint=True)
+
+    if plotter_mode == 'scatter':
+        act_sp = y_act
+    else:
+        act_sp = np.linspace(min(y_act), max(y_act), num=250)
+
+    quantiles_sp = np.zeros((len(quantiles), len(act_sp)))
+    for j, act in enumerate(act_sp):
+        cdf = get_cdf(kde, u, x0=act)
         for i, q in enumerate(quantiles):
-            plt.scatter(arg_sp, val_sp[:, i])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.legend(quantiles)
+            quantiles_sp[i, j] = get_quantile(cdf, u, q)
+
+    modifier = {'raw':         (lambda x: x),
+                'subtraction': (lambda x: x - act_sp),
+                'division':    (lambda x: x / act_sp)}
+
+    plotter = {'plot':    (lambda x, y: plt.plot(x, y)),
+               'scatter': (lambda x, y: plt.scatter(x, y))}
+
+    for i, q in enumerate(quantiles):
+        plotter[plotter_mode](act_sp, modifier[plt_mode](quantiles_sp[i, :]))
+
+    plt.legend([f"{q}-quantile" for q in quantiles])
 
 
-def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
-                   plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute') -> None:
-    """
-    :param y_pred: sample of predicted values
-    :param y_act: sample of actual values
-    :param quantiles: quantiles list. Default: [0.05, 0.25, 0.50, 0.75, 0.95]
-    :param plt_mode: plt_mode must be in ['raw', 'subtraction', 'division']
-    :param plotter_mode: plotter_mode must be in ['plot', 'scatter']
-    :param delta: slice radius
-    :param delta_mode: 'absolute' or 'relative'
-    """
-    quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
-    arg_sp = y_pred
-    sample = np.vstack((y_act, y_pred))
-    val_sp = np.array([np.quantile(get_slice(arg, sample, 0, delta, delta_mode), quantiles)
-                       for arg in arg_sp])
 
-    plt_mode = plt_mode.lower()
-    if plt_mode not in modes_list:
-        raise ValueError(
-            f"Incorrect plt_mode value(plt_mode={plt_mode}):\nAvailable plot modes: {', '.join(modes_list)}")
-    if plt_mode == 'subtraction':
-        for i in range(len(quantiles)):
-            val_sp[:, i] -= y_act
-    elif plt_mode == 'division':
-        for i in range(len(quantiles)):
-            val_sp[:, i] /= y_act
+def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None,
+                   plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
+                   plotter_mode: Literal['plot', 'scatter'] = 'plot') -> None:
+    quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
 
-    plotter_mode = plotter_mode.lower()
-    if plotter_mode not in plotter_modes_list:
-        raise ValueError(
-            f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
-            f"Available plotter modes: {', '.join(plotter_modes_list)}")
+    kde = stats.gaussian_kde(np.vstack([y_act, y_pred]))
+    u = np.linspace(min(y_pred), max(y_pred), num=10_000, endpoint=True)
 
-    plot(arg_sp, val_sp, quantiles, plotter_mode)
+    if plotter_mode == 'scatter':
+        pred_sp = y_pred
+    else:
+        pred_sp = np.linspace(min(y_pred), max(y_pred), num=250)
 
+    quantiles_sp = np.zeros((len(quantiles), len(pred_sp)))
+    for j, pred in enumerate(pred_sp):
+        cdf = get_cdf(kde, u, y0=pred)
+        for i, q in enumerate(quantiles):
+            quantiles_sp[i, j] = get_quantile(cdf, u, q)
 
-def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
-                plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute') -> None:
-    """
-    :param y_pred: sample of predicted values
-    :param y_act: sample of actual values
-    :param quantiles: quantiles list. Default: [0.05, 0.25, 0.50, 0.75, 0.95]
-    :param plt_mode: plt_mode must be in ['raw', 'subtraction', 'division']
-    :param plotter_mode: plotter_mode must be in ['plot', 'scatter']
-    :param delta: slice radius
-    :param delta_mode: 'absolute' or 'relative'
-    """
-    quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
-    arg_sp = y_act
-    sample = np.vstack((y_act, y_pred))
-    val_sp = np.vstack(tuple(np.quantile(get_slice(arg, sample, 1, delta, delta_mode), quantiles)
-                             for arg in arg_sp))
+    modifier = {'raw':         (lambda x: x),
+                'subtraction': (lambda x: x - pred_sp),
+                'division':    (lambda x: x / pred_sp)}
 
-    plt_mode = plt_mode.lower()
-    if plt_mode not in modes_list:
-        raise ValueError(
-            f"Incorrect plt_mode value(plt_mode={plt_mode}):\nAvailable plot modes: {', '.join(modes_list)}")
-    if plt_mode == 'subtraction':
-        for i in range(len(quantiles)):
-            val_sp[:, i] -= y_pred
-    elif plt_mode == 'division':
-        for i in range(len(quantiles)):
-            val_sp[:, i] /= y_pred
+    plotter = {'plot':    (lambda x, y: plt.plot(x, y)),
+               'scatter': (lambda x, y: plt.scatter(x, y))}
 
-    plotter_mode = plotter_mode.lower()
-    if plotter_mode not in plotter_modes_list:
-        raise ValueError(
-            f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
-            f"Available plotter modes: {', '.join(plotter_modes_list)}")
+    for i, q in enumerate(quantiles):
+        plotter[plotter_mode](pred_sp, modifier[plt_mode](quantiles_sp[i, :]))
 
-    plot(arg_sp, val_sp, quantiles, plotter_mode)
+    plt.legend([f"{q}-quantile" for q in quantiles])
+
