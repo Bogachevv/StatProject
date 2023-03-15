@@ -1,7 +1,5 @@
-import typing
 import numpy as np
 from matplotlib import pyplot as plt
-import itertools
 from typing import Literal
 from scipy import stats
 from bisect import bisect_right
@@ -36,8 +34,10 @@ def get_quantile(cdf, u, q):
 
 def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,
                    plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
-                   plotter_mode: Literal['plot', 'scatter'] = 'plot') -> None:
+                   plotter_mode: Literal['plot', 'scatter'] = 'plot',
+                   ax: plt.axes = None) -> None:
     quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
+    ax = plt.axes() if ax is None else ax
 
     kde = stats.gaussian_kde(np.vstack([y_act, y_pred]))
     u = np.linspace(min(y_act), max(y_act), num=10_000, endpoint=True)
@@ -57,16 +57,18 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
                 'subtraction': (lambda x: x - pred_sp),
                 'division': (lambda x: x / pred_sp)}
 
-    plotter = {'plot': (lambda x, y: plt.plot(x, y)),
-               'scatter': (lambda x, y: plt.scatter(x, y))}
+    plotter = {'plot':    (lambda x, y: ax.plot(x, y)),
+               'scatter': (lambda x, y: ax.scatter(x, y))}
 
     for i, q in enumerate(quantiles):
         plotter[plotter_mode](pred_sp, modifier[plt_mode](quantiles_sp[i, :]))
 
-    plt.legend([f"{q}-quantile" for q in quantiles])
+    ax.legend([f"{q}-quantile" for q in quantiles])
 
 
 def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,
                 plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
-                plotter_mode: Literal['plot', 'scatter'] = 'plot') -> None:
-    return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode)
+                plotter_mode: Literal['plot', 'scatter'] = 'plot',
+                ax: plt.axes = None) -> None:
+    return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax)
+
