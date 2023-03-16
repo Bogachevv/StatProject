@@ -36,7 +36,7 @@ def get_slice(center: float, sample: np.ndarray, res_dim: int, delta: float = 0.
     return slc if len(slc) else np.zeros(1)
 
 
-def plot(arg_sp: np.ndarray, val_sp: np.ndarray, quantiles: list[float], plotter_mode: str):
+def plot(arg_sp: np.ndarray, val_sp: np.ndarray, quantiles: list[float], plotter_mode: str, ax: plt.axes):
     if plotter_mode == 'plot':
         color_map = 'rgbk'
         line_styles = ['-', '--', '-.', ':']
@@ -45,25 +45,27 @@ def plot(arg_sp: np.ndarray, val_sp: np.ndarray, quantiles: list[float], plotter
         for i, (q, c) in enumerate(zip(quantiles, colors)):
             plot_arr = np.vstack((arg_sp, val_sp[:, i]))
             plot_arr = plot_arr[:, np.argsort(plot_arr[0, :])]
-            plt.plot(plot_arr[0, :], plot_arr[1, :], c)
+            ax.plot(plot_arr[0, :], plot_arr[1, :], c)
     else:
         for i, q in enumerate(quantiles):
-            plt.scatter(arg_sp, val_sp[:, i])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.legend(quantiles)
+            ax.scatter(arg_sp, val_sp[:, i])
+    # ax.xlabel("Predicted")
+    # ax.ylabel("Actual")
+    ax.legend(quantiles)
 
 
-def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
-                   plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute') -> None:
+def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
+                   plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute',
+                   ax: plt.axes = None) -> None:
     """
-    :param y_pred: sample of predicted values
     :param y_act: sample of actual values
+    :param y_pred: sample of predicted values
     :param quantiles: quantiles list. Default: [0.05, 0.25, 0.50, 0.75, 0.95]
     :param plt_mode: plt_mode must be in ['raw', 'subtraction', 'division']
     :param plotter_mode: plotter_mode must be in ['plot', 'scatter']
     :param delta: slice radius
     :param delta_mode: 'absolute' or 'relative'
+    :param ax: pyplot axis
     """
     quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
     arg_sp = y_pred
@@ -88,41 +90,20 @@ def plot_precision(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float]
             f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
             f"Available plotter modes: {', '.join(plotter_modes_list)}")
 
-    plot(arg_sp, val_sp, quantiles, plotter_mode)
+    plot(arg_sp, val_sp, quantiles, plotter_mode, ax)
 
 
-def plot_recall(y_pred: np.ndarray, y_act: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
-                plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute') -> None:
+def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None, plt_mode: str = 'raw',
+                plotter_mode: str = 'plot', delta: float = 0.05, delta_mode='absolute',
+                ax: plt.axes = None) -> None:
     """
-    :param y_pred: sample of predicted values
     :param y_act: sample of actual values
+    :param y_pred: sample of predicted values
     :param quantiles: quantiles list. Default: [0.05, 0.25, 0.50, 0.75, 0.95]
     :param plt_mode: plt_mode must be in ['raw', 'subtraction', 'division']
     :param plotter_mode: plotter_mode must be in ['plot', 'scatter']
     :param delta: slice radius
     :param delta_mode: 'absolute' or 'relative'
+    :param ax: pyplot axis
     """
-    quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
-    arg_sp = y_act
-    sample = np.vstack((y_act, y_pred))
-    val_sp = np.vstack(tuple(np.quantile(get_slice(arg, sample, 1, delta, delta_mode), quantiles)
-                             for arg in arg_sp))
-
-    plt_mode = plt_mode.lower()
-    if plt_mode not in modes_list:
-        raise ValueError(
-            f"Incorrect plt_mode value(plt_mode={plt_mode}):\nAvailable plot modes: {', '.join(modes_list)}")
-    if plt_mode == 'subtraction':
-        for i in range(len(quantiles)):
-            val_sp[:, i] -= y_pred
-    elif plt_mode == 'division':
-        for i in range(len(quantiles)):
-            val_sp[:, i] /= y_pred
-
-    plotter_mode = plotter_mode.lower()
-    if plotter_mode not in plotter_modes_list:
-        raise ValueError(
-            f"Incorrect plotter_mode value(plotter_mode={plotter_mode}):\n"
-            f"Available plotter modes: {', '.join(plotter_modes_list)}")
-
-    plot(arg_sp, val_sp, quantiles, plotter_mode)
+    return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, delta, delta_mode, ax)
