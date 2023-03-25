@@ -39,13 +39,14 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
     ax = plt.axes() if ax is None else ax
 
-    kde = stats.gaussian_kde(np.vstack([y_act, y_pred]))
-    u = np.linspace(min(y_act), max(y_act), num=10_000, endpoint=True)
+    ast = np.argsort(y_pred)
+    y_act = y_act[ast]
+    y_pred = y_pred[ast]
 
-    if plotter_mode == 'scatter':
-        pred_sp = y_pred
-    else:
-        pred_sp = np.linspace(min(y_pred), max(y_pred), num=250)
+    kde = stats.gaussian_kde(np.vstack([y_act, y_pred]))
+    u = np.linspace(min(y_act), max(y_act), num=1_000, endpoint=True)
+
+    pred_sp = y_pred
 
     quantiles_sp = np.zeros((len(quantiles), len(pred_sp)))
     for j, pred in enumerate(pred_sp):
