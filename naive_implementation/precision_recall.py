@@ -67,6 +67,7 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     :param delta_mode: 'absolute' or 'relative'
     :param ax: pyplot axis
     """
+    ax = plt.axes() if ax is None else ax
     quantiles = [0.05, 0.25, 0.50, 0.75, 0.95] if quantiles is None else quantiles
     arg_sp = y_pred
     sample = np.vstack((y_act, y_pred))
