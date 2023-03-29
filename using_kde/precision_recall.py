@@ -16,7 +16,7 @@ def extend(arr: np.array, gen: Callable[[float, float, int], float]) -> np.array
     return new_arr
 
 
-def get_cdf(pdf, left: float, right: float, n: int = 7) -> Tuple[np.array, np.array]:
+def get_cdf(pdf, left: float, right: float, n: int = 7, int_eps: float = 0.01, arg_delta: float = 0.01) -> Tuple[np.array, np.array]:
     arg_sp_gen = lambda a_prev, a_next, i: (a_prev + a_next) / 2
 
     old_arg_sp = np.linspace(left, right, num=n)
@@ -27,26 +27,22 @@ def get_cdf(pdf, left: float, right: float, n: int = 7) -> Tuple[np.array, np.ar
     old_int = integrate.cumulative_trapezoid(old_val_sp, old_arg_sp, initial=0)
     new_int = integrate.cumulative_trapezoid(new_val_sp, new_arg_sp, initial=0)
 
-    eps = 0.01
     while True:
-        # TODO:
-        #  think of a good choose eps
-        #  maybe i should use simpson's method instead of trapz
-        #  maybe i should use np.linspace instead of extend(arg_sp)
         delta_int = max(abs(new_int[2*i] - old_int[i]) for i in range(n))
-        # delta_arg = max(new_arg_sp[i] - new_arg_sp[i-1] for i in range(1, 2*n-1))
-        delta_arg = (new_arg_sp[-1] - new_arg_sp[0]) / len(new_arg_sp)
-        # if (delta_int < eps) and (delta_arg < eps):
-        if delta_int < eps:
+        net_resolution = (new_arg_sp[-1] - new_arg_sp[0]) / len(new_arg_sp)
+        arg_eps = arg_delta / max(new_val_sp)
+        if (delta_int < int_eps) and (net_resolution < arg_eps):
             break
         n = 2 * n - 1
         old_arg_sp = new_arg_sp.copy()
-        new_arg_sp = extend(old_arg_sp, arg_sp_gen)
+        # new_arg_sp = extend(old_arg_sp, arg_sp_gen)
+        new_arg_sp = np.linspace(left, right, num=2*n - 1)
         old_val_sp = new_val_sp.copy()
         new_val_sp = extend(old_val_sp, lambda a_prev, a_next, i: pdf(new_arg_sp[2 * i + 1]))
         old_int = new_int.copy()
         new_int = integrate.cumulative_trapezoid(new_val_sp, new_arg_sp, initial=0)
 
+    # print(n)
     assert new_int[-1] > 0
     cdf = new_int / new_int[-1]
 
@@ -86,7 +82,8 @@ def plot_precision(y_act: np.array, y_pred: np.array, quantiles: list[float] = N
     left_bound = min(y_act)
     right_bound = max(y_act)
     for j, pred in enumerate(y_pred):
-        u, cdf = get_cdf(lambda x: kde((x, pred))[0], left_bound, right_bound)
+        u, cdf = get_cdf(lambda x: kde((x, pred))[0], left_bound, right_bound,
+                         arg_delta=min(min(quantiles), 1 - max(quantiles)), int_eps=1e-3)
         for i, q in enumerate(quantiles):
             quantiles_sp[i, j] = get_quantile(cdf, u, q)
 

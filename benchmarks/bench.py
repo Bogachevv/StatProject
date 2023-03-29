@@ -40,7 +40,8 @@ def bench_precision():
 
 def profile_precision(size: int, o_path: str = None):
     from using_kde.precision_recall import plot_precision
-    target = plot_precision
+    # target = plot_precision
+    target = lambda y_act, y_pred: plot_precision(y_act, y_pred, quantiles=[0.003, 0.05, 0.32, 0.5, 0.68, 0.95, 0.997])
     sample, = make_samples(size, 1)
 
     with cProfile.Profile() as prof:
@@ -56,7 +57,7 @@ def profile_precision(size: int, o_path: str = None):
 
 def main():
     # bench_precision()
-    profile_precision(10_000, "stats_x10_fast.prof")
+    profile_precision(100, "stats_arg_delta_bad.prof")
 
 
 if __name__ == '__main__':
