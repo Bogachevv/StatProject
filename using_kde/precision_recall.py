@@ -4,9 +4,6 @@ from typing import Literal, Callable, Tuple
 from scipy import stats, integrate
 from bisect import bisect_right
 
-# TODO:
-#  profile code, using cProfile
-
 
 def extend(arr: np.array, gen: Callable[[float, float, int], float]) -> np.array:
     new_arr = np.zeros(arr.shape[0] * 2 - 1)
@@ -30,14 +27,17 @@ def get_cdf(pdf, left: float, right: float, n: int = 7) -> Tuple[np.array, np.ar
     old_int = integrate.cumulative_trapezoid(old_val_sp, old_arg_sp, initial=0)
     new_int = integrate.cumulative_trapezoid(new_val_sp, new_arg_sp, initial=0)
 
-    eps = 0.001
+    eps = 0.01
     while True:
         # TODO:
-        #  speed up using generator expression instead of array slicing
         #  think of a good choose eps
         #  maybe i should use simpson's method instead of trapz
-        delta = max(abs(new_int[np.arange(0, 2 * n - 1) % 2 == 0] - old_int))
-        if delta < eps:
+        #  maybe i should use np.linspace instead of extend(arg_sp)
+        delta_int = max(abs(new_int[2*i] - old_int[i]) for i in range(n))
+        # delta_arg = max(new_arg_sp[i] - new_arg_sp[i-1] for i in range(1, 2*n-1))
+        delta_arg = (new_arg_sp[-1] - new_arg_sp[0]) / len(new_arg_sp)
+        # if (delta_int < eps) and (delta_arg < eps):
+        if delta_int < eps:
             break
         n = 2 * n - 1
         old_arg_sp = new_arg_sp.copy()
