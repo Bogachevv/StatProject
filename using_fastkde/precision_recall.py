@@ -38,9 +38,9 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     ax = plt.axes() if ax is None else ax
 
     pOfYGivenX, axes = fastKDE.conditional(inputVars=y_act, conditioningVars=y_pred)  # pdf of (act | pred)
-    pred_ax = axes[0][pOfYGivenX.mask[0, :] == False]
+    pred_ax = axes[0][(pOfYGivenX.mask[0, :] == False) & (axes[0] >= min(y_pred)) & (axes[0] <= max(y_pred))]
     act_ax = axes[1]
-    cond_pdf = pOfYGivenX[:, pOfYGivenX.mask[0, :] == False].data
+    cond_pdf = pOfYGivenX[:, (pOfYGivenX.mask[0, :] == False) & (axes[0] >= min(y_pred)) & (axes[0] <= max(y_pred))].data
 
     quantiles_sp = np.zeros((len(quantiles), cond_pdf.shape[1]))
     for j in range(cond_pdf.shape[1]):
