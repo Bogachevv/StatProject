@@ -1,6 +1,5 @@
 __all__ = ['plot_precision', 'plot_recall']
 
-
 import numpy as np
 from numpy import ndarray
 from matplotlib import pyplot as plt
@@ -28,7 +27,7 @@ def _prod(a: ndarray, b: ndarray) -> ndarray:
 
 
 def _calc_mean(pdf: ndarray, u: ndarray) -> float:
-    return integrate.trapezoid(pdf*u, u)
+    return integrate.trapezoid(pdf * u, u)
 
 
 def _sort_pair(x: ndarray, y: ndarray) -> None:
@@ -75,15 +74,23 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     quantiles_sp = np.zeros((len(quantiles), pred_sp.shape[0]))
     mean_sp = np.zeros_like(pred_sp)
 
-    p = _prod(pred_sp, np.linspace(np.min(y_act), np.max(y_act), num=quality))
+    points = _prod(pred_sp, np.linspace(np.min(y_act), np.max(y_act), num=quality))
+
     kde_evs = (stats.
                gaussian_kde(np.vstack([y_act, y_pred])).
-               evaluate(p))
+               evaluate(points).
+               reshape((-1, quality)))
+
+    points = (points.
+              transpose().
+              reshape((resolution, quality, -1))
+              [:, :, 1].
+              copy())
 
     for j, pred in enumerate(pred_sp):
-        u = p[1, p[0] == pred]
-        cdf = integrate.cumulative_trapezoid(kde_evs[p[0] == pred], u, initial=0.0)
-        mean_sp[j] = _calc_mean(kde_evs[p[0] == pred] / cdf[-1], u)
+        u = points[j, :]
+        cdf = integrate.cumulative_trapezoid(kde_evs[j, :], u, initial=0.0)
+        mean_sp[j] = _calc_mean(kde_evs[j, :] / cdf[-1], u)
         cdf /= cdf[-1]
 
         for i, q in enumerate(quantiles):
@@ -105,4 +112,3 @@ def plot_recall(y_act: np.array, y_pred: np.array, quantiles: list[float] = None
                 plotter_mode: Literal['plot', 'scatter'] = 'plot',
                 ax: plt.axes = None) -> None:
     return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax)
-
