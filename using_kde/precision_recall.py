@@ -1,4 +1,4 @@
-__all__ = ['plot_precision', 'plot_recall']
+__all__ = ['plot_precision', 'plot_recall', 'plot_pdf']
 
 import numpy as np
 from numpy import ndarray
@@ -107,8 +107,23 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     ax.legend()
 
 
-def plot_recall(y_act: np.array, y_pred: np.array, quantiles: list[float] = None,
+def plot_recall(y_act: ndarray, y_pred: ndarray, quantiles: list[float] = None,
                 plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
                 plotter_mode: Literal['plot', 'scatter'] = 'plot',
                 ax: plt.axes = None) -> None:
     return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax)
+
+
+def plot_pdf(y_act: ndarray, y_pred: ndarray, ax: plt.axes = None, resolution: int = 100) -> None:
+    ax = plt.axes() if ax is None else ax
+
+    arg_sp = np.linspace(min(np.min(y_act), np.min(y_pred)),
+                         max(np.max(y_act), np.max(y_pred)),
+                         num=resolution)
+    act_kde = stats.gaussian_kde(y_act).evaluate(arg_sp)
+    pred_kde = stats.gaussian_kde(y_pred).evaluate(arg_sp)
+
+    ax.plot(arg_sp, act_kde,  label="PDF of actual values")
+    ax.plot(arg_sp, pred_kde, label="PDF of predicted values")
+
+    ax.legend()
