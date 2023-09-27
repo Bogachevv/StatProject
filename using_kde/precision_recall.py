@@ -66,18 +66,20 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
                    plotter_mode: Literal['plot', 'scatter'] = 'plot',
                    ax: plt.axes = None,
                    quality: int = 1_000,
-                   resolution: int = 100) -> None:
+                   resolution: int = 100,
+                   bw_method: Callable | float | Literal['scott', 'silverman'] = None) -> None:
     quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
     ax = plt.axes() if ax is None else ax
 
     pred_sp = np.linspace(np.min(y_pred), np.max(y_pred), num=resolution)
     quantiles_sp = np.zeros((len(quantiles), pred_sp.shape[0]))
     mean_sp = np.zeros_like(pred_sp)
+    idx = np.zeros_like(pred_sp, dtype=bool)
 
     points = _prod(pred_sp, np.linspace(np.min(y_act), np.max(y_act), num=quality))
 
     kde_evs = (stats.
-               gaussian_kde(np.vstack([y_act, y_pred])).
+               gaussian_kde(np.vstack([y_act, y_pred]), bw_method=bw_method).
                evaluate(points).
                reshape((-1, quality)))
 
@@ -87,7 +89,11 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
               [:, :, 1].
               copy())
 
+    d = pred_sp[1] - pred_sp[0]
     for j, pred in enumerate(pred_sp):
+        if np.min(np.abs(pred - y_pred) > d):
+            continue
+        idx[j] = True
         u = points[j, :]
         cdf = integrate.cumulative_trapezoid(kde_evs[j, :], u, initial=0.0)
         mean_sp[j] = _calc_mean(kde_evs[j, :] / cdf[-1], u)
@@ -100,18 +106,25 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     plotter = _get_plotter(plotter_mode, ax)
 
     for i, q in enumerate(quantiles):
-        plotter(pred_sp, modifier(quantiles_sp[i, :]), label=f"{q}-quantile")
+        plotter(pred_sp[idx], modifier(quantiles_sp[i, idx]), label=f"{q}-quantile")
 
-    plotter(pred_sp, mean_sp, label="mean", c='r')
+    plotter(pred_sp[idx], mean_sp[idx], label="mean", c='r')
+
+    lower_bound = np.full_like(pred_sp, ax.get_ylim()[0])
+    ax.scatter(x=pred_sp[~idx], y=lower_bound[~idx], s=1, c='b', label='No data')
+    ax.scatter(x=pred_sp[idx], y=lower_bound[idx], s=1, c='r', label='Has data')
 
     ax.legend()
 
 
-def plot_recall(y_act: ndarray, y_pred: ndarray, quantiles: list[float] = None,
+def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,
                 plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
                 plotter_mode: Literal['plot', 'scatter'] = 'plot',
-                ax: plt.axes = None) -> None:
-    return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax)
+                ax: plt.axes = None,
+                quality: int = 1_000,
+                resolution: int = 100,
+                bw_method: Callable | float | Literal['scott', 'silverman'] = None) -> None:
+    return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax, quality, resolution, bw_method)
 
 
 def plot_pdf(y_act: ndarray, y_pred: ndarray, ax: plt.axes = None, resolution: int = 100) -> None:
@@ -123,7 +136,7 @@ def plot_pdf(y_act: ndarray, y_pred: ndarray, ax: plt.axes = None, resolution: i
     act_kde = stats.gaussian_kde(y_act).evaluate(arg_sp)
     pred_kde = stats.gaussian_kde(y_pred).evaluate(arg_sp)
 
-    ax.plot(arg_sp, act_kde,  label="PDF of actual values")
+    ax.plot(arg_sp, act_kde, label="PDF of actual values")
     ax.plot(arg_sp, pred_kde, label="PDF of predicted values")
 
     ax.legend()
