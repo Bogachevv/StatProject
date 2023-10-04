@@ -1,39 +1,61 @@
 import numpy as np
+from numpy import ndarray
 from scipy import integrate
 from matplotlib import pyplot as plt
-from typing import Literal
+from typing import Literal, Callable
 from scipy import stats
 from bisect import bisect_right
 from fastkde import fastKDE
 
 
-def pack(val, min=0, max=1):
-    if val < min:
-        return min
-    if val > max:
-        return max
-
-    return val
+def _pack(val, min_v=0, max_v=1):
+    return min(max(val, min_v), max_v)
 
 
-def get_cdf(pdf: np.array, arg_sp: np.ndarray):
-    cdf = np.zeros(pdf.shape)
-    for i in range(pdf.shape[0]):
-        cdf[i] = integrate.trapz(pdf[0:i], arg_sp[0:i])
+def _calc_mean(pdf: ndarray, u: ndarray) -> float:
+    return integrate.trapezoid(pdf * u, u)
+
+
+def _get_cdf(pdf: np.array, arg_sp: np.ndarray):
+    cdf = integrate.cumulative_trapezoid(
+        y=pdf,
+        x=arg_sp,
+        initial=0.0
+    )
 
     return cdf
 
 
-def get_quantile(cdf, u, q):
+def _get_quantile(cdf, u, q):
     q_pos = bisect_right(cdf, q)
-    q_pos = pack(q_pos, min=0, max=u.shape[0] - 1)
+    q_pos = _pack(q_pos, min_v=0, max_v=u.shape[0] - 1)
     return u[q_pos]
+
+
+def _get_plotter(plotter_mode: Literal['plot', 'scatter'], ax) -> Callable:
+    if plotter_mode == 'plot':
+        return ax.plot
+    if plotter_mode == 'scatter':
+        return ax.scatter
+    raise NotImplemented
+
+
+def _get_modifier(mode: Literal['raw', 'subtraction', 'division'], param: ndarray | None) -> Callable:
+    if mode == 'raw':
+        return lambda x: x
+    if mode == 'subtraction':
+        return lambda x: x - param
+    if mode == 'division':
+        assert np.all(param != 0.0)
+        return lambda x: x / param
+    raise NotImplemented
 
 
 def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,
                    plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
                    plotter_mode: Literal['plot', 'scatter'] = 'plot',
                    ax: plt.axes = None) -> None:
+
     quantiles = [0.05, 0.5, 0.95] if quantiles is None else quantiles
     ax = plt.axes() if ax is None else ax
 
@@ -43,23 +65,23 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
     cond_pdf = pOfYGivenX[:, (pOfYGivenX.mask[0, :] == False) & (axes[0] >= min(y_pred)) & (axes[0] <= max(y_pred))].data
 
     quantiles_sp = np.zeros((len(quantiles), cond_pdf.shape[1]))
+    mean_sp = np.zeros_like(pred_ax)
+
     for j in range(cond_pdf.shape[1]):
-        cdf = get_cdf(cond_pdf[:, j], act_ax)
+        cdf = _get_cdf(cond_pdf[:, j], act_ax)
+        mean_sp[j] = _calc_mean(cond_pdf[:, j] / cdf[-1], act_ax)
         for i, q in enumerate(quantiles):
-            quantiles_sp[i, j] = get_quantile(cdf, act_ax, q)
+            quantiles_sp[i, j] = _get_quantile(cdf, act_ax, q)
 
-
-    modifier = {'raw': (lambda x: x),
-                'subtraction': (lambda x: x - pred_ax),
-                'division': (lambda x: x / pred_ax)}
-
-    plotter = {'plot':    (lambda x, y: ax.plot(x, y)),
-               'scatter': (lambda x, y: ax.scatter(x, y))}
+    modifier = _get_modifier(plt_mode, pred_ax)
+    plotter = _get_plotter(plotter_mode, ax)
 
     for i, q in enumerate(quantiles):
-        plotter[plotter_mode](pred_ax, modifier[plt_mode](quantiles_sp[i, :]))
+        plotter(pred_ax, modifier(quantiles_sp[i, :]), label=f"{q}-quantile")
 
-    ax.legend([f"{q}-quantile" for q in quantiles])
+    plotter(pred_ax, mean_sp, label="mean", c='r')
+
+    ax.legend()
 
 
 def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,

@@ -116,8 +116,10 @@ def plot_precision(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float]
 
     ax.legend()
 
+    return ax
 
-def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = None,
+
+def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = plt.axes,
                 plt_mode: Literal['raw', 'subtraction', 'division'] = 'raw',
                 plotter_mode: Literal['plot', 'scatter'] = 'plot',
                 ax: plt.axes = None,
@@ -127,16 +129,22 @@ def plot_recall(y_act: np.ndarray, y_pred: np.ndarray, quantiles: list[float] = 
     return plot_precision(y_pred, y_act, quantiles, plt_mode, plotter_mode, ax, quality, resolution, bw_method)
 
 
-def plot_pdf(y_act: ndarray, y_pred: ndarray, ax: plt.axes = None, resolution: int = 100) -> None:
+def plot_pdf(y_act: ndarray,
+             y_pred: ndarray,
+             ax: plt.axes = None,
+             resolution: int = 100,
+             bw_method: Callable | float | Literal['scott', 'silverman'] = None) -> plt.axes:
     ax = plt.axes() if ax is None else ax
 
     arg_sp = np.linspace(min(np.min(y_act), np.min(y_pred)),
                          max(np.max(y_act), np.max(y_pred)),
                          num=resolution)
-    act_kde = stats.gaussian_kde(y_act).evaluate(arg_sp)
-    pred_kde = stats.gaussian_kde(y_pred).evaluate(arg_sp)
+    act_kde = stats.gaussian_kde(y_act, bw_method=bw_method).evaluate(arg_sp)
+    pred_kde = stats.gaussian_kde(y_pred, bw_method=bw_method).evaluate(arg_sp)
 
     ax.plot(arg_sp, act_kde, label="PDF of actual values")
     ax.plot(arg_sp, pred_kde, label="PDF of predicted values")
 
     ax.legend()
+
+    return ax
